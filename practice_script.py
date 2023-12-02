@@ -1,15 +1,10 @@
 import os
 import torch
-import imageio.v3 as iio
 import numpy as np
-import matplotlib.pyplot as plt
 import torchmetrics 
-import os 
 from torch import nn, optim
-from torchvision.io import read_image
-from sys import getsizeof
 from torch.utils.data import random_split,Dataset,DataLoader 
-from torchvision import transforms, tv_tensors
+from torchvision import tv_tensors
 from torchvision.transforms import v2
 import random 
 import torch.nn.functional as F
@@ -104,13 +99,10 @@ def load_data(video_folder):
     input_std = torch.std(torch.Tensor(data_sample[0][0]),dim=[1,2])
 
 
-    height = mask_list[0][0].shape[1]
-    width = mask_list[0][0].shape[2]
-
     input_transform = v2.Normalize(input_mean,input_std)
 
 
-    ss_dataset = Semantic_Segmentation_Dataset(mask_list[:100], 
+    ss_dataset = Semantic_Segmentation_Dataset(mask_list, 
                                             input_transform=input_transform,
                                             target_transform=None
                                             )
@@ -128,8 +120,8 @@ def train_practice(hyperparameters, train_subset,val_subset):
     net.classifier._modules['4'] = torch.nn.Conv2d(256, 49, kernel_size=(1, 1), stride=(1, 1))
     optimizer = optim.Adam(net.parameters(),lr=hyperparameters["lr"])
     
-    if os.path.isfile("./practice_stop.pth") and os.path.getsize("./practice_stop.pth") > 0:
-        checkpoint = torch.load("./practice_stop.pth")
+    if os.path.isfile("./mask_model_stop.pth") and os.path.getsize("./mask_model_stop.pth") > 0:
+        checkpoint = torch.load("./mask_model_stop.pth")
         net.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint['epoch']
@@ -159,10 +151,10 @@ def train_practice(hyperparameters, train_subset,val_subset):
     height = train_subset[0][1].shape[0]
     width = train_subset[0][1].shape[1]
    
-    trainloader = torch.utils.data.DataLoader(
+    trainloader = DataLoader(
         train_subset, batch_size=int(hyperparameters["batch_size"]), shuffle=True, drop_last=True,
     )
-    valloader = torch.utils.data.DataLoader(
+    valloader = DataLoader(
         val_subset, batch_size=len(val_subset), 
     )
 
@@ -189,7 +181,7 @@ def train_practice(hyperparameters, train_subset,val_subset):
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': running_loss,
         'best_val_jac':best_val_jac,
-        }, "practice_stop.pth")
+        }, "mask_model_stop.pth")
 
 
         # Validation loss
@@ -218,7 +210,7 @@ def train_practice(hyperparameters, train_subset,val_subset):
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': running_loss,
                     'best_val_jac':best_val_jac,
-                    }, "practice_best.pth")
+                    }, "best_mask_model.pth")
 
                 val_loss += loss.cpu().numpy()
                 val_steps += 1
@@ -243,17 +235,17 @@ def train_practice(hyperparameters, train_subset,val_subset):
 
 if __name__ == "__main__":
     #Loading Data
-    train_location = "./Project Data/Dataset_Student/train/"
-    val_location = "./Project Data/Dataset_Student/val/"
+    train_location = "./project_data/dataset/Dataset_Student/train/"
+    val_location = "./project_data/dataset/Dataset_Student/val/"
     train_subset, val_subset = load_data(train_location)
-    hyperparameters = {"lr":0.001,"batch_size":32,"max_epochs":200}
+    hyperparameters = {"lr":0.001,"batch_size":32,"max_epochs":500}
 
-    model_exists = os.path.isfile("./practice_best.pth") and os.path.getsize("./practice_best.pth") > 0
+    model_exists = os.path.isfile("./best_mask_model.pth") and os.path.getsize("./best_mask_model.pth") > 0
     threshold = .8
 
     if model_exists:
         #load model
-        checkpoint = torch.load("./practice_stop.pth")
+        checkpoint = torch.load("./mask_model_stop.pth")
 
         #Loading Net
         net = torch.hub.load('pytorch/vision:v0.10.0', 'deeplabv3_resnet50', weights=None)
